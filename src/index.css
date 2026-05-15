@@ -137,6 +137,30 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
+
+  /* Cursor pointer on all clickable elements */
+  button,
+  a,
+  [role="button"],
+  [type="button"],
+  [type="submit"],
+  [type="reset"],
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="file"],
+  select,
+  label[for],
+  summary,
+  [tabindex]:not([tabindex="-1"]),
+  .cursor-pointer {
+    cursor: pointer;
+  }
+
+  /* Disabled elements */
+  [disabled],
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
 }
 
 @layer base {

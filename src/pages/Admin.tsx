@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { logoutAdmin } from "./AdminLogin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Toaster } from "@/components/ui/sonner";
 import {
   Upload,
-  Sun,
-  Moon,
   Check,
   Move,
   Loader2,
@@ -20,30 +19,16 @@ import {
   ArrowRight,
   Minus,
   Plus,
+  LogOut,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   loadEventConfig,
   saveEventConfig,
   type EventConfig,
   type Shape,
 } from "@/lib/firebase";
-
-const THEME_KEY = "jyserai:theme";
-type Theme = "dark" | "light";
-
-function useTheme() {
-  const [theme, setTheme] = useState<Theme>("dark");
-  useEffect(() => {
-    const saved = (localStorage.getItem(THEME_KEY) as Theme | null) ?? "dark";
-    setTheme(saved);
-  }, []);
-  useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
-    localStorage.setItem(THEME_KEY, theme);
-  }, [theme]);
-  return { theme, setTheme };
-}
 
 const DEFAULT_CONFIG: EventConfig = {
   name: "Mon événement",
@@ -69,7 +54,12 @@ export function Admin() {
   const maskInputRef = useRef<HTMLInputElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const zoneRef = useRef<HTMLDivElement>(null);
-  const { theme, setTheme } = useTheme();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logoutAdmin();
+    navigate("/");
+  };
 
   // Drag state
   const [dragging, setDragging] = useState<"move" | ResizeHandle | null>(null);
@@ -422,8 +412,66 @@ export function Admin() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex min-h-screen flex-col bg-background">
+        {/* Header skeleton */}
+        <header className="flex items-center justify-between border-b border-border px-6 py-4">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+          </div>
+          <Skeleton className="h-8 w-8 rounded-md" />
+        </header>
+
+        {/* Body skeleton */}
+        <main className="flex flex-1 flex-col lg:flex-row">
+          {/* Preview skeleton */}
+          <div className="flex flex-1 items-center justify-center bg-muted/30 p-6">
+            <Skeleton className="aspect-square w-full max-w-lg rounded-lg" />
+          </div>
+
+          {/* Settings panel skeleton */}
+          <div className="w-full border-t border-border bg-card p-6 lg:w-96 lg:border-l lg:border-t-0">
+            <Skeleton className="h-4 w-28 mb-6" />
+            <div className="space-y-5">
+              <div className="space-y-1.5">
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="h-10 w-full rounded-md" />
+              </div>
+              <div className="space-y-1.5">
+                <Skeleton className="h-3 w-40" />
+                <Skeleton className="h-10 w-full rounded-md" />
+              </div>
+              <div className="space-y-1.5">
+                <Skeleton className="h-3 w-28" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Skeleton className="h-10 rounded-md" />
+                  <Skeleton className="h-10 rounded-md" />
+                  <Skeleton className="h-10 rounded-md" />
+                  <Skeleton className="h-10 rounded-md" />
+                </div>
+              </div>
+              <div className="space-y-3 rounded-lg border border-border p-4">
+                <Skeleton className="h-3 w-24" />
+                <div className="grid grid-cols-2 gap-3">
+                  <Skeleton className="h-16 rounded-md" />
+                  <Skeleton className="h-16 rounded-md" />
+                  <Skeleton className="h-16 rounded-md" />
+                  <Skeleton className="h-16 rounded-md" />
+                </div>
+              </div>
+              <div className="border-t border-border pt-5">
+                <Skeleton className="h-10 w-full rounded-md" />
+                <Skeleton className="mx-auto mt-2 h-3 w-48" />
+              </div>
+              <div className="border-t border-border pt-5">
+                <Skeleton className="h-10 w-full rounded-md" />
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -446,14 +494,15 @@ export function Admin() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="text-muted-foreground hover:text-foreground"
+            onClick={handleLogout}
+            className="text-muted-foreground hover:text-red-500"
           >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </header>

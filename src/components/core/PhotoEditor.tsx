@@ -15,33 +15,9 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { loadEventConfig, type EventConfig } from "@/lib/firebase";
 
-import {
-  Upload,
-  RotateCcw,
-  Download,
-  ImageIcon,
-  RotateCw,
-  Sun,
-  Moon,
-  Loader2,
-} from "lucide-react";
-
-const THEME_KEY = "jyserai:theme";
-type Theme = "dark" | "light";
-
-function useTheme() {
-  const [theme, setTheme] = useState<Theme>("dark");
-  useEffect(() => {
-    const saved = (localStorage.getItem(THEME_KEY) as Theme | null) ?? "dark";
-    setTheme(saved);
-  }, []);
-  useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
-    localStorage.setItem(THEME_KEY, theme);
-  }, [theme]);
-  return { theme, setTheme };
-}
+import { Upload, RotateCcw, Download, ImageIcon, RotateCw } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function PhotoEditor() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -59,7 +35,6 @@ export function PhotoEditor() {
   });
   const [exporting, setExporting] = useState(false);
   const [stageSize, setStageSize] = useState({ width: 800, height: 800 });
-  const { theme, setTheme } = useTheme();
 
   // Load config from Firebase
   useEffect(() => {
@@ -234,10 +209,55 @@ export function PhotoEditor() {
 
   if (loading) {
     return (
-      <div className="flex h-dvh items-center justify-center bg-background">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-sm">Chargement...</span>
+      <div className="flex h-dvh flex-col bg-background">
+        {/* Header skeleton */}
+        <header className="flex items-center justify-between border-b border-border px-6 py-4">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-3 w-28" />
+            </div>
+          </div>
+          <Skeleton className="h-8 w-8 rounded-md" />
+        </header>
+
+        {/* Body skeleton */}
+        <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+          {/* Canvas skeleton */}
+          <main className="flex flex-1 items-center justify-center p-4 lg:p-10">
+            <Skeleton className="aspect-square w-full max-w-[60vh] rounded-xl" />
+          </main>
+
+          {/* Toolbar skeleton */}
+          <aside className="border-t border-border bg-card p-6 lg:w-85 lg:border-l lg:border-t-0">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-4 w-full" />
+              </div>
+              <Skeleton className="h-11 w-full rounded-md" />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-5 w-full rounded-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-5 w-full rounded-full" />
+                </div>
+                <div className="flex gap-2">
+                  <Skeleton className="h-9 flex-1 rounded-md" />
+                  <Skeleton className="h-9 flex-1 rounded-md" />
+                </div>
+              </div>
+              <Skeleton className="h-9 w-full rounded-md" />
+              <div className="border-t border-border pt-6">
+                <Skeleton className="h-11 w-full rounded-md" />
+                <Skeleton className="mx-auto mt-2 h-3 w-32" />
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
     );
@@ -259,19 +279,7 @@ export function PhotoEditor() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="text-muted-foreground hover:text-foreground"
-            aria-label="Changer le thème"
-          >
-            {theme === "dark" ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </Button>
+          <ThemeToggle />
         </div>
       </header>
 
