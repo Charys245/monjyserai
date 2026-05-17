@@ -44,7 +44,7 @@ export function PhotoEditor() {
   }, []);
 
   const [templateImg] = useImage(event?.templateUrl ?? "", "anonymous");
-  const [photoImg, photoStatus] = useImage(photoDataUrl ?? "");
+  const [photoImg] = useImage(photoDataUrl ?? "");
   const [maskImg] = useImage(event?.maskUrl ?? "", "anonymous");
 
   // Responsive square stage
@@ -85,15 +85,6 @@ export function PhotoEditor() {
     [event?.zone, native]
   );
 
-  // Debug: log photo loading status
-  useEffect(() => {
-    if (photoDataUrl) {
-      console.log("Photo status:", photoStatus, "Photo loaded:", !!photoImg);
-      console.log("Zone:", zonePx);
-      console.log("Transform:", photoTransform);
-      console.log("Event zone config:", event?.zone);
-    }
-  }, [photoDataUrl, photoStatus, photoImg, zonePx, photoTransform, event?.zone]);
 
   // Initialize photo cover-fit on load
   useEffect(() => {
@@ -172,16 +163,15 @@ export function PhotoEditor() {
     }
   };
 
-  // Clip function based on shape
-  const getClipFunc = () => {
+  // Clip function based on shape (memoized)
+  const clipFunc = useMemo(() => {
     if (!event) return undefined;
 
-    return (ctx: Konva.Context) => {
-      const { x, y, width, height } = zonePx;
-      const shape = event.zone.shape;
+    const { x, y, width, height } = zonePx;
+    const shape = event.zone.shape;
 
+    return (ctx: Konva.Context) => {
       if (shape === "custom" && maskImg) {
-        // For custom masks, fall back to rectangle
         ctx.rect(x, y, width, height);
       } else if (shape === "circle") {
         const r = Math.min(width, height) / 2;
@@ -205,7 +195,7 @@ export function PhotoEditor() {
         ctx.rect(x, y, width, height);
       }
     };
-  };
+  }, [event, zonePx, maskImg]);
 
   if (loading) {
     return (
@@ -315,7 +305,7 @@ export function PhotoEditor() {
                       />
                     )}
                     {/* Photo clipped to zone, on top of template */}
-                    <Group clipFunc={getClipFunc()}>
+                    <Group clipFunc={clipFunc}>
                       {photoImg && (
                         <KImage
                           ref={photoRef}
