@@ -6,6 +6,7 @@ import {
   Rect,
   Group,
   Circle,
+  Transformer,
 } from "react-konva";
 import useImage from "use-image";
 import type Konva from "konva";
@@ -23,6 +24,7 @@ export function PhotoEditor() {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const photoRef = useRef<Konva.Image>(null);
+  const transformerRef = useRef<Konva.Transformer>(null);
 
   const [loading, setLoading] = useState(true);
   const [event, setEvent] = useState<EventConfig | null>(null);
@@ -35,6 +37,7 @@ export function PhotoEditor() {
   });
   const [exporting, setExporting] = useState(false);
   const [stageSize, setStageSize] = useState({ width: 800, height: 800 });
+  const [isPhotoSelected, setIsPhotoSelected] = useState(false);
 
   // Load config from Firebase
   useEffect(() => {
@@ -47,21 +50,6 @@ export function PhotoEditor() {
   const [photoImg] = useImage(photoDataUrl ?? "");
   const [maskImg] = useImage(event?.maskUrl ?? "", "anonymous");
 
-  // Responsive square stage
-  useEffect(() => {
-    const update = () => {
-      if (!containerRef.current) return;
-      const w = containerRef.current.clientWidth;
-      const h = containerRef.current.clientHeight;
-      const size = Math.min(w, h);
-      setStageSize({ width: size, height: size });
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    if (containerRef.current) ro.observe(containerRef.current);
-    return () => ro.disconnect();
-  }, []);
-
   // Native canvas size from template
   const native = useMemo(() => {
     if (templateImg)
@@ -72,8 +60,39 @@ export function PhotoEditor() {
     return { width: 2160, height: 2160 };
   }, [templateImg]);
 
+  // Responsive stage that fits container while preserving template aspect ratio
+  useEffect(() => {
+    const update = () => {
+      if (!containerRef.current) return;
+      const containerW = containerRef.current.clientWidth;
+      const containerH = containerRef.current.clientHeight;
+
+      // Use template ratio, default to square if no template yet
+      const templateRatio = native.width / native.height;
+
+      // Calculate size to fit container (contain mode)
+      let width: number;
+      let height: number;
+
+      if (containerW / containerH > templateRatio) {
+        // Container is wider than template ratio - fit by height
+        height = containerH;
+        width = height * templateRatio;
+      } else {
+        // Container is taller than template ratio - fit by width
+        width = containerW;
+        height = width / templateRatio;
+      }
+
+      setStageSize({ width, height });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, [native.width, native.height]);
+
   const scale = stageSize.width / native.width;
-  const displayHeight = native.height * scale;
 
   const zonePx = useMemo(
     () => ({
@@ -100,6 +119,17 @@ export function PhotoEditor() {
       rotation: 0,
     });
   }, [photoImg, zonePx.x, zonePx.y, zonePx.width, zonePx.height]);
+
+  // Attach transformer to photo when selected
+  useEffect(() => {
+    if (!transformerRef.current) return;
+    if (isPhotoSelected && photoRef.current) {
+      transformerRef.current.nodes([photoRef.current]);
+    } else {
+      transformerRef.current.nodes([]);
+    }
+    transformerRef.current.getLayer()?.batchDraw();
+  }, [isPhotoSelected, photoImg]);
 
   const handlePhotoUpload = (file: File) => {
     if (!["image/jpeg", "image/png", "image/jpg"].includes(file.type)) {
@@ -131,34 +161,63 @@ export function PhotoEditor() {
     });
   };
 
-  const exportPng = async () => {
+  const exportImages = async () => {
     if (!event?.templateUrl || !photoImg) {
       toast.error("Aucune photo sélectionnée");
       return;
     }
     setExporting(true);
     try {
+      // Hide transformer before export
+      transformerRef.current?.hide();
+      setIsPhotoSelected(false);
+
       const targetSize = Math.max(native.width, 2160);
       const pixelRatio = targetSize / stageSize.width;
       await new Promise((r) => requestAnimationFrame(r));
-      const dataUrl = stageRef.current?.toDataURL({
-        pixelRatio,
-        mimeType: "image/png",
-      });
-      if (!dataUrl) throw new Error("export failed");
-      const a = document.createElement("a");
-      a.href = dataUrl;
+
       const safe =
         event.name
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "_")
           .replace(/^_|_$/g, "") || "event";
-      a.download = `jy_serai_${safe}.png`;
-      a.click();
-      toast.success("Ton visuel est prêt !");
+
+      // Export PNG
+      const pngDataUrl = stageRef.current?.toDataURL({
+        pixelRatio,
+        mimeType: "image/png",
+      });
+
+      // Export JPG (quality 0.85 for good balance size/quality)
+      const jpgDataUrl = stageRef.current?.toDataURL({
+        pixelRatio,
+        mimeType: "image/jpeg",
+        quality: 0.85,
+      });
+
+      // Show transformer again
+      transformerRef.current?.show();
+
+      if (!pngDataUrl || !jpgDataUrl) throw new Error("export failed");
+
+      // Download PNG
+      const aPng = document.createElement("a");
+      aPng.href = pngDataUrl;
+      aPng.download = `jy_serai_${safe}.png`;
+      aPng.click();
+
+      // Small delay then download JPG
+      await new Promise((r) => setTimeout(r, 500));
+      const aJpg = document.createElement("a");
+      aJpg.href = jpgDataUrl;
+      aJpg.download = `jy_serai_${safe}.jpg`;
+      aJpg.click();
+
+      toast.success("Tes visuels PNG et JPG sont prêts !");
     } catch {
       toast.error("Une erreur est survenue");
     } finally {
+      transformerRef.current?.show();
       setExporting(false);
     }
   };
@@ -274,25 +333,36 @@ export function PhotoEditor() {
       </header>
 
       {/* Body */}
-      <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+      <div className="flex flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
         {/* Canvas area */}
-        <main className="flex flex-1 items-center justify-center overflow-hidden p-4 lg:p-10">
+        <main className="flex shrink-0 items-center justify-center p-4 lg:flex-1 lg:p-10">
           <div
             ref={containerRef}
-            className="relative flex h-full w-full max-h-[80vh] max-w-[80vh] items-center justify-center"
+            className="relative flex w-full h-[calc(100dvh-320px)] max-h-[70vh] items-center justify-center lg:h-full lg:max-w-[80vh] lg:max-h-[80vh]"
           >
             {!event?.templateUrl ? (
               <EmptyTemplate />
             ) : (
               <div
                 className="relative checker-bg rounded-xl overflow-hidden border border-border shadow-2xl"
-                style={{ width: stageSize.width, height: displayHeight }}
+                style={{ width: stageSize.width, height: stageSize.height }}
               >
                 <Stage
                   ref={stageRef}
                   width={stageSize.width}
-                  height={displayHeight}
+                  height={stageSize.height}
                   scale={{ x: scale, y: scale }}
+                  onMouseDown={(e) => {
+                    // Deselect when clicking on empty area
+                    if (e.target === e.target.getStage()) {
+                      setIsPhotoSelected(false);
+                    }
+                  }}
+                  onTouchStart={(e) => {
+                    if (e.target === e.target.getStage()) {
+                      setIsPhotoSelected(false);
+                    }
+                  }}
                 >
                   {/* Template as background */}
                   <Layer>
@@ -318,6 +388,9 @@ export function PhotoEditor() {
                           offsetX={photoImg.naturalWidth / 2}
                           offsetY={photoImg.naturalHeight / 2}
                           draggable
+                          onClick={() => setIsPhotoSelected(true)}
+                          onTap={() => setIsPhotoSelected(true)}
+                          onDragStart={() => setIsPhotoSelected(true)}
                           onDragEnd={(e) =>
                             setPhotoTransform((t) => ({
                               ...t,
@@ -325,9 +398,39 @@ export function PhotoEditor() {
                               y: e.target.y(),
                             }))
                           }
+                          onTransformEnd={(e) => {
+                            const node = e.target;
+                            setPhotoTransform({
+                              x: node.x(),
+                              y: node.y(),
+                              scale: node.scaleX(),
+                              rotation: node.rotation(),
+                            });
+                          }}
                         />
                       )}
                     </Group>
+                    {/* Transformer for resizing photo */}
+                    {photoImg && (
+                      <Transformer
+                        ref={transformerRef}
+                        rotateEnabled={true}
+                        keepRatio={true}
+                        enabledAnchors={[
+                          "top-left",
+                          "top-right",
+                          "bottom-left",
+                          "bottom-right",
+                        ]}
+                        boundBoxFunc={(oldBox, newBox) => {
+                          // Limit minimum size
+                          if (newBox.width < 20 || newBox.height < 20) {
+                            return oldBox;
+                          }
+                          return newBox;
+                        }}
+                      />
+                    )}
                     {/* Outline guide when no photo */}
                     {!photoImg && event && (
                       <>
@@ -375,7 +478,7 @@ export function PhotoEditor() {
             onTransform={setPhotoTransform}
             onUpload={handlePhotoUpload}
             onReset={resetPhoto}
-            onExport={exportPng}
+            onExport={exportImages}
             exporting={exporting}
             disabled={!event?.templateUrl}
           />
@@ -554,10 +657,10 @@ function Toolbar({
           className="h-11 w-full justify-center font-medium"
         >
           <Download className="mr-2 h-4 w-4" />
-          {exporting ? "Préparation du rendu..." : "Télécharger le visuel"}
+          {exporting ? "Préparation..." : "Télécharger les visuels"}
         </Button>
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          PNG haute qualité · 2160×2160
+          PNG + JPG · 2160×2160
         </p>
       </div>
     </div>
